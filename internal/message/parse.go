@@ -106,6 +106,18 @@ func parseCodexItemEvent(log *slog.Logger, data map[string]any) (Message, error)
 		}, nil
 	}
 
+	// Defense-in-depth: suppress non-completed agent_message events that
+	// reach the parser (e.g. item.updated deltas from custom transports or
+	// exec backend). Only item.completed agent_message events produce an
+	// AssistantMessage; others are emitted as system lifecycle messages.
+	if event.Item.Type == ItemTypeAgentMessage && event.Type != EventItemCompleted {
+		return &SystemMessage{
+			Type:    "system",
+			Subtype: string(event.Type) + ".agent_message_delta",
+			Data:    data,
+		}, nil
+	}
+
 	return convertCodexItem(event.Item, event.Type), nil
 }
 
@@ -236,36 +248,12 @@ func parseCodexTurnCompleted(data map[string]any) (*ResultMessage, error) {
 		result.IsError = v
 	}
 
-	if v, ok := data["duration_ms"].(float64); ok {
-		result.DurationMs = int(v)
-	} else if v, ok := data["durationMs"].(float64); ok {
-		result.DurationMs = int(v)
-	}
-
-	if v, ok := data["duration_api_ms"].(float64); ok {
-		result.DurationAPIMs = int(v)
-	} else if v, ok := data["durationApiMs"].(float64); ok {
-		result.DurationAPIMs = int(v)
-	}
-
-	if v, ok := data["num_turns"].(float64); ok {
-		result.NumTurns = int(v)
-	} else if v, ok := data["numTurns"].(float64); ok {
-		result.NumTurns = int(v)
-	}
-
 	if sid, ok := data["session_id"].(string); ok {
 		result.SessionID = sid
 	} else if sid, ok := data["thread_id"].(string); ok {
 		result.SessionID = sid
 	} else if sid, ok := data["threadId"].(string); ok {
 		result.SessionID = sid
-	}
-
-	if v, ok := data["total_cost_usd"].(float64); ok {
-		result.TotalCostUSD = &v
-	} else if v, ok := data["totalCostUsd"].(float64); ok {
-		result.TotalCostUSD = &v
 	}
 
 	if txt, ok := data["result"].(string); ok {
@@ -286,6 +274,18 @@ func parseCodexTurnCompleted(data map[string]any) (*ResultMessage, error) {
 			usage.OutputTokens = int(v)
 		} else if v, ok := usageData["outputTokens"].(float64); ok {
 			usage.OutputTokens = int(v)
+		}
+
+		if v, ok := usageData["cached_input_tokens"].(float64); ok {
+			usage.CachedInputTokens = int(v)
+		} else if v, ok := usageData["cachedInputTokens"].(float64); ok {
+			usage.CachedInputTokens = int(v)
+		}
+
+		if v, ok := usageData["reasoning_output_tokens"].(float64); ok {
+			usage.ReasoningOutputTokens = int(v)
+		} else if v, ok := usageData["reasoningOutputTokens"].(float64); ok {
+			usage.ReasoningOutputTokens = int(v)
 		}
 
 		result.Usage = usage

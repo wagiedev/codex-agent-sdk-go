@@ -841,13 +841,10 @@ func (t *resultMessageTransport) SendMessage(_ context.Context, data []byte) err
 	if t.sentResult.CompareAndSwap(false, true) {
 		go func() {
 			t.msgChan <- map[string]any{
-				"type":            "result",
-				"subtype":         "success",
-				"duration_ms":     1,
-				"duration_api_ms": 1,
-				"is_error":        false,
-				"num_turns":       1,
-				"session_id":      "session-test",
+				"type":       "result",
+				"subtype":    "success",
+				"is_error":   false,
+				"session_id": "session-test",
 			}
 		}()
 	}

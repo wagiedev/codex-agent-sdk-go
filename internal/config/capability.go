@@ -102,6 +102,10 @@ var optionCapabilities = []OptionCapability{
 		Field: "SkipVersionCheck", OptionName: "WithSkipVersionCheck", Exec: SupportSupported,
 		AppServer: SupportSupported,
 	},
+	{
+		Field: "IncludePartialMessages", OptionName: "WithIncludePartialMessages", Exec: SupportUnsupported,
+		AppServer: SupportSupported,
+	},
 }
 
 var optionCapabilityByField = func() map[string]OptionCapability {
@@ -165,6 +169,7 @@ func EnabledOptionFields(opts *Options) map[string]bool {
 	set("Config", len(opts.Config) > 0)
 	set("OutputSchema", opts.OutputSchema != "")
 	set("SkipVersionCheck", opts.SkipVersionCheck)
+	set("IncludePartialMessages", opts.IncludePartialMessages)
 
 	return enabled
 }

@@ -100,8 +100,8 @@ func main() {
 		case *codexsdk.ResultMessage:
 			fmt.Println()
 
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
+			if m.Usage != nil {
+				fmt.Printf("Tokens: %d in / %d out\n", m.Usage.InputTokens, m.Usage.OutputTokens)
 			}
 
 			os.Exit(0)

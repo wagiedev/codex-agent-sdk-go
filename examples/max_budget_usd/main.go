@@ -10,7 +10,7 @@ import (
 	codexsdk "github.com/wagiedev/codex-agent-sdk-go"
 )
 
-func displayMessage(msg codexsdk.Message) float64 {
+func displayMessage(msg codexsdk.Message) int {
 	switch m := msg.(type) {
 	case *codexsdk.UserMessage:
 		for _, block := range m.Content.Blocks() {
@@ -27,10 +27,12 @@ func displayMessage(msg codexsdk.Message) float64 {
 	case *codexsdk.ResultMessage:
 		fmt.Printf("Status: %s\n", m.Subtype)
 
-		if m.TotalCostUSD != nil {
-			fmt.Printf("Total cost: $%.6f\n", *m.TotalCostUSD)
+		if m.Usage != nil {
+			tokens := m.Usage.InputTokens + m.Usage.OutputTokens
+			fmt.Printf("Tokens: %d in / %d out (total: %d)\n",
+				m.Usage.InputTokens, m.Usage.OutputTokens, tokens)
 
-			return *m.TotalCostUSD
+			return tokens
 		}
 	}
 
@@ -77,8 +79,8 @@ func runSingleQuery(title, prompt string) {
 }
 
 func runSoftBudgetExample() {
-	fmt.Println("=== Soft Budget Guard Example (Client-Side) ===")
-	fmt.Println("This demo enforces a local budget by stopping additional turns once cumulative cost exceeds the target.")
+	fmt.Println("=== Soft Token Budget Guard Example (Client-Side) ===")
+	fmt.Println("This demo enforces a local token budget by stopping additional turns once cumulative tokens exceed the target.")
 	fmt.Println()
 
 	logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
@@ -101,18 +103,18 @@ func runSoftBudgetExample() {
 		return
 	}
 
-	softBudget := 0.0001
+	tokenBudget := 10000
 	prompts := []string{
 		"Read README.md and summarize it in 5 bullet points.",
 		"Now summarize the previous summary in 2 bullet points.",
 		"Now give a one-paragraph abstract of the repository.",
 	}
 
-	cumulative := 0.0
-	costSignals := 0
+	cumulative := 0
+	usageSignals := 0
 
 	for i, prompt := range prompts {
-		fmt.Printf("Soft-budget query %d: %s\n", i+1, prompt)
+		fmt.Printf("Token-budget query %d: %s\n", i+1, prompt)
 
 		if err := client.Query(ctx, prompt); err != nil {
 			fmt.Printf("Failed to send query: %v\n", err)
@@ -127,17 +129,17 @@ func runSoftBudgetExample() {
 				return
 			}
 
-			turnCost := displayMessage(msg)
-			if turnCost > 0 {
-				costSignals++
-				cumulative += turnCost
+			turnTokens := displayMessage(msg)
+			if turnTokens > 0 {
+				usageSignals++
+				cumulative += turnTokens
 			}
 		}
 
-		fmt.Printf("Cumulative observed cost: $%.6f\n", cumulative)
+		fmt.Printf("Cumulative tokens: %d\n", cumulative)
 
-		if cumulative >= softBudget {
-			fmt.Printf("Soft budget reached ($%.6f >= $%.6f); stopping further queries.\n", cumulative, softBudget)
+		if cumulative >= tokenBudget {
+			fmt.Printf("Token budget reached (%d >= %d); stopping further queries.\n", cumulative, tokenBudget)
 
 			break
 		}
@@ -145,23 +147,23 @@ func runSoftBudgetExample() {
 		fmt.Println()
 	}
 
-	if costSignals == 0 {
-		fmt.Println("[INFO] No cost values were returned in result messages for this run.")
-		fmt.Println("[INFO] Soft budget guard cannot trigger without reported TotalCostUSD.")
+	if usageSignals == 0 {
+		fmt.Println("[INFO] No usage data was returned in result messages for this run.")
+		fmt.Println("[INFO] Token budget guard cannot trigger without reported Usage.")
 	}
 
 	fmt.Println()
 }
 
 func main() {
-	fmt.Println("Budget Management Examples")
+	fmt.Println("Token Budget Management Examples")
 	fmt.Println()
-	fmt.Println("This example demonstrates budget-aware execution using result-message cost tracking.")
+	fmt.Println("This example demonstrates budget-aware execution using result-message token tracking.")
 	fmt.Println()
 
 	runSingleQuery("Baseline Query", "What is 2 + 2?")
 	runSoftBudgetExample()
 
-	fmt.Println("Note: This is a client-side soft budget strategy.")
+	fmt.Println("Note: This is a client-side soft budget strategy using token counts.")
 	fmt.Println("The SDK currently does not expose a built-in hard max budget option.")
 }

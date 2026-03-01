@@ -743,17 +743,10 @@ func TestAppServerAdapter_NotificationTranslation(t *testing.T) {
 				"text": "hello",
 			},
 		},
-		{
-			name:         "item/agentMessage/delta",
-			method:       "item/agentMessage/delta",
-			params:       json.RawMessage(`{"delta":"chunk","itemId":"item1"}`),
-			expectedType: "item.updated",
-			checkItem:    true,
-			expectedFields: map[string]any{
-				"type": "agent_message",
-				"text": "chunk",
-			},
-		},
+		// item/agentMessage/delta is tested separately in
+		// TestAppServerAdapter_DeltaSuppression_DisabledByDefault and
+		// TestAppServerAdapter_DeltaEmission_WhenEnabled since default
+		// behavior suppresses deltas (returns nil).
 		{
 			name:         "item/completed with commandExecution",
 			method:       "item/completed",
@@ -1543,6 +1536,69 @@ func TestAppServerAdapter_CodexEvent_Unique(t *testing.T) {
 				t.Fatalf("expected system message for %s", tc.method)
 			}
 		})
+	}
+}
+
+func TestAppServerAdapter_DeltaSuppression_DisabledByDefault(t *testing.T) {
+	mock := newMockAppServerRPC()
+	adapter := newTestAdapter(mock)
+
+	defer func() {
+		close(adapter.done)
+		mock.Close()
+		adapter.wg.Wait()
+	}()
+
+	// includePartialMessages defaults to false in newTestAdapter.
+	mock.notifyCh <- &RPCNotification{
+		JSONRPC: "2.0",
+		Method:  "item/agentMessage/delta",
+		Params:  json.RawMessage(`{"delta":"hello","itemId":"item_1"}`),
+	}
+
+	// Delta should be suppressed — nothing should arrive.
+	select {
+	case msg := <-adapter.messages:
+		t.Fatalf("expected delta to be suppressed, got: %v", msg)
+	case <-time.After(100 * time.Millisecond):
+		// Expected: no message produced.
+	}
+}
+
+func TestAppServerAdapter_DeltaEmission_WhenEnabled(t *testing.T) {
+	mock := newMockAppServerRPC()
+	adapter := newTestAdapter(mock)
+	adapter.includePartialMessages = true
+	adapter.threadID = "thr_test"
+
+	defer func() {
+		close(adapter.done)
+		mock.Close()
+		adapter.wg.Wait()
+	}()
+
+	mock.notifyCh <- &RPCNotification{
+		JSONRPC: "2.0",
+		Method:  "item/agentMessage/delta",
+		Params:  json.RawMessage(`{"delta":"world","itemId":"item_2"}`),
+	}
+
+	select {
+	case msg := <-adapter.messages:
+		require.Equal(t, "stream_event", msg["type"])
+		require.Equal(t, "item_2", msg["uuid"])
+		require.Equal(t, "thr_test", msg["session_id"])
+
+		event, ok := msg["event"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "content_block_delta", event["type"])
+
+		delta, ok := event["delta"].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "text_delta", delta["type"])
+		require.Equal(t, "world", delta["text"])
+	case <-time.After(time.Second):
+		t.Fatal("expected stream_event message from delta")
 	}
 }
 

@@ -212,8 +212,8 @@ func displayMessage(msg codexsdk.Message) bool {
 	case *codexsdk.ResultMessage:
 		fmt.Println("Result ended")
 
-		if m.TotalCostUSD != nil {
-			fmt.Printf("Cost: $%.6f\n", *m.TotalCostUSD)
+		if m.Usage != nil {
+			fmt.Printf("Tokens: %d in / %d out\n", m.Usage.InputTokens, m.Usage.OutputTokens)
 		}
 
 		return false

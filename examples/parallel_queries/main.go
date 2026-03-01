@@ -42,8 +42,8 @@ func getAssistantText(
 		}
 
 		if m, ok := msg.(*codexsdk.ResultMessage); ok {
-			if m.TotalCostUSD != nil {
-				cost = *m.TotalCostUSD
+			if m.Usage != nil {
+				cost = float64(m.Usage.InputTokens + m.Usage.OutputTokens)
 			}
 		}
 	}

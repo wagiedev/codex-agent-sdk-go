@@ -105,7 +105,7 @@ func TestDynamicControl_Interrupt(t *testing.T) {
 		}
 
 		if result, ok := msg.(*codexsdk.ResultMessage); ok {
-			t.Logf("Session ended: isError=%v, numTurns=%d", result.IsError, result.NumTurns)
+			t.Logf("Session ended: isError=%v", result.IsError)
 
 			break
 		}

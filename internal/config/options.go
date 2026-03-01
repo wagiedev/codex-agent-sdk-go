@@ -168,4 +168,10 @@ type Options struct {
 
 	// SkipVersionCheck disables CLI version validation during discovery.
 	SkipVersionCheck bool
+
+	// IncludePartialMessages controls whether streaming deltas are emitted
+	// as StreamEvent messages. When false (default), only completed
+	// AssistantMessage and ResultMessage are emitted. When true, token-by-token
+	// deltas are emitted as StreamEvent with content_block_delta/text_delta shape.
+	IncludePartialMessages bool
 }

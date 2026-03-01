@@ -56,8 +56,8 @@ func main() {
 				}
 			}
 		case *codexsdk.ResultMessage:
-			if m.TotalCostUSD != nil {
-			fmt.Printf("done in %dms, total cost: %.6f\n", m.DurationMs, *m.TotalCostUSD)
+			if m.Usage != nil {
+			fmt.Printf("done — %d input, %d output tokens\n", m.Usage.InputTokens, m.Usage.OutputTokens)
 		}
 		}
 	}
@@ -157,7 +157,7 @@ if err != nil {
 
 ### Message and content types
 
-- Message types: `AssistantMessage`, `UserMessage`, `SystemMessage`, `ResultMessage`
+- Message types: `AssistantMessage`, `UserMessage`, `SystemMessage`, `ResultMessage`, `StreamEvent`
 - Content blocks: `TextBlock`, `ThinkingBlock`, `ToolUseBlock`, `ToolResultBlock`
 
 ### Stream helpers
@@ -216,6 +216,7 @@ Options are backend-dependent. Unsupported combinations fail fast with `ErrUnsup
 | `WithResume("session-id")` / `WithForkSession(true)` | Resume/fork sessions |
 | `WithContinueConversation(true)` | Continue prior conversation |
 | `WithEffort(codexsdk.EffortHigh)` | Extended thinking effort |
+| `WithIncludePartialMessages(true)` | Emit streaming deltas as `StreamEvent` |
 | `WithAddDirs("/extra/path")` | Additional accessible directories |
 | `WithExtraArgs(map[string]*string{...})` | Raw CLI flags |
 
@@ -278,6 +279,7 @@ for msg, err := range codexsdk.Query(ctx, prompt) {
 | [`parallel_queries`](./examples/parallel_queries) | Concurrent one-shot queries |
 | [`pipeline`](./examples/pipeline) | Multi-step orchestration flow |
 | [`sdk_tools`](./examples/sdk_tools) | SDK-defined tools with `WithSDKTools` |
+| [`include_partial_messages`](./examples/include_partial_messages) | Real-time streaming deltas with `WithIncludePartialMessages` |
 | [`error_handling`](./examples/error_handling) | Typed error handling |
 
 Run examples:
