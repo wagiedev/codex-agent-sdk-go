@@ -142,6 +142,81 @@ func TestParseAssistantMessage(t *testing.T) {
 	}
 }
 
+func TestParseCodexAgentMessageDeltaSuppression(t *testing.T) {
+	logger := slog.Default()
+
+	tests := []struct {
+		name       string
+		data       map[string]any
+		wantType   string
+		wantSystem bool
+	}{
+		{
+			name: "item.updated agent_message suppressed to SystemMessage",
+			data: map[string]any{
+				"type": "item.updated",
+				"item": map[string]any{
+					"type": "agent_message",
+					"text": "partial delta",
+				},
+			},
+			wantType:   "system",
+			wantSystem: true,
+		},
+		{
+			name: "item.started agent_message suppressed to SystemMessage",
+			data: map[string]any{
+				"type": "item.started",
+				"item": map[string]any{
+					"type": "agent_message",
+					"text": "",
+				},
+			},
+			wantType:   "system",
+			wantSystem: true,
+		},
+		{
+			name: "item.completed agent_message emits AssistantMessage",
+			data: map[string]any{
+				"type": "item.completed",
+				"item": map[string]any{
+					"type": "agent_message",
+					"text": "complete text",
+				},
+			},
+			wantType:   "assistant",
+			wantSystem: false,
+		},
+		{
+			name: "item.updated command_execution emits AssistantMessage",
+			data: map[string]any{
+				"type": "item.updated",
+				"item": map[string]any{
+					"type":    "command_execution",
+					"id":      "cmd_1",
+					"command": "ls",
+				},
+			},
+			wantType:   "assistant",
+			wantSystem: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			msg, err := Parse(logger, tt.data)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantType, msg.MessageType())
+
+			if tt.wantSystem {
+				sys, ok := msg.(*SystemMessage)
+				require.True(t, ok, "expected *SystemMessage")
+				require.Contains(t, sys.Subtype, "agent_message_delta")
+			}
+		})
+	}
+}
+
 func TestParseCodexFileChangeKindObject(t *testing.T) {
 	logger := slog.Default()
 

@@ -24,7 +24,9 @@
 //	            }
 //	        }
 //	    case *codexsdk.ResultMessage:
-//	        fmt.Printf("Completed in %dms\n", m.DurationMs)
+//	        if m.Usage != nil {
+//	            fmt.Printf("Tokens: %d in / %d out\n", m.Usage.InputTokens, m.Usage.OutputTokens)
+//	        }
 //	    }
 //	}
 //
@@ -61,6 +63,23 @@
 //	    codexsdk.WithLogger(slog.Default()),
 //	    codexsdk.WithPermissionMode("acceptEdits"),
 //	)
+//
+// # Streaming Deltas
+//
+// By default, only completed AssistantMessage and ResultMessage are emitted.
+// To receive token-by-token streaming deltas as StreamEvent messages, enable
+// WithIncludePartialMessages:
+//
+//	for msg, err := range codexsdk.Query(ctx, "Hello",
+//	    codexsdk.WithIncludePartialMessages(true),
+//	) {
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    if se, ok := msg.(*codexsdk.StreamEvent); ok {
+//	        // se.Event contains content_block_delta / text_delta data
+//	    }
+//	}
 //
 // # Logging
 //

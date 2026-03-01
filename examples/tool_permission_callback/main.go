@@ -44,10 +44,9 @@ func displayMessage(msg codexsdk.Message) {
 
 	case *codexsdk.ResultMessage:
 		fmt.Println("Task completed!")
-		fmt.Printf("   Duration: %dms\n", m.DurationMs)
 
-		if m.TotalCostUSD != nil {
-			fmt.Printf("   Cost: $%.4f\n", *m.TotalCostUSD)
+		if m.Usage != nil {
+			fmt.Printf("   Tokens: %d in / %d out\n", m.Usage.InputTokens, m.Usage.OutputTokens)
 		}
 	}
 }

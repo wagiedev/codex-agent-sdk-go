@@ -908,12 +908,12 @@ func TestClient_MessageTypeHandling(t *testing.T) {
 		},
 		{
 			name:        "result message success",
-			messageJSON: `{"type":"result","subtype":"success","duration_ms":1234,"is_error":false,"num_turns":5,"session_id":"session_abc"}`,
+			messageJSON: `{"type":"result","subtype":"success","is_error":false,"session_id":"session_abc"}`,
 			expectType:  "result",
 		},
 		{
 			name:        "result message error",
-			messageJSON: `{"type":"result","subtype":"error_max_turns","duration_ms":5000,"is_error":true,"num_turns":100,"session_id":"session_err"}`,
+			messageJSON: `{"type":"result","subtype":"error_max_turns","is_error":true,"session_id":"session_err"}`,
 			expectType:  "result",
 		},
 		{
@@ -1063,7 +1063,7 @@ func TestClient_ConcurrentSendReceiveWhenNotConnected(t *testing.T) {
 func TestClient_ResponseStopsAtResult(t *testing.T) {
 	t.Run("ResultMessage detection", func(t *testing.T) {
 		// Test that we can detect ResultMessage type
-		resultJSON := `{"type":"result","subtype":"success","duration_ms":1234,"is_error":false,"num_turns":5,"session_id":"session_abc"}`
+		resultJSON := `{"type":"result","subtype":"success","is_error":false,"session_id":"session_abc"}`
 
 		var msg map[string]any
 

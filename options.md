@@ -9,7 +9,6 @@ This SDK removed options that were unsupported on both built-in backends (`exec`
 The following constructors were removed from `options.go`:
 
 - `WithThinking`
-- `WithIncludePartialMessages`
 - `WithMaxBudgetUSD`
 - `WithMCPConfig`
 - `WithSandboxSettings`
@@ -31,7 +30,6 @@ Examples that depended on removed options and no longer represented supported be
 
 - `examples/agents/main.go`
 - `examples/filesystem_agents/main.go`
-- `examples/include_partial_messages/main.go`
 - `examples/plugin_example/main.go`
 - `examples/setting_sources/main.go`
 
@@ -42,7 +40,7 @@ These examples were kept but updated to use supported behavior:
 - `examples/extended_thinking/main.go`
   - now demonstrates `WithEffort` (supported) instead of removed thinking controls.
 - `examples/max_budget_usd/main.go`
-  - now demonstrates client-side soft budget logic using `ResultMessage.TotalCostUSD`.
+  - now demonstrates client-side soft budget logic using `ResultMessage.Usage` token counts.
 - `examples/stderr_callback/main.go`
   - removed unsupported startup flags and still demonstrates stderr callback capture.
 

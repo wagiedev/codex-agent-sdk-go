@@ -57,6 +57,10 @@ type AppServerAdapter struct {
 	// Used as a fallback result payload when turn/completed does not include one.
 	lastAssistantText string
 
+	// includePartialMessages controls whether streaming deltas are emitted
+	// as stream_event messages. When false, delta notifications are suppressed.
+	includePartialMessages bool
+
 	// pendingRPCRequests maps synthetic request_id strings to JSON-RPC IDs
 	// for server-to-client requests (hooks/MCP).
 	pendingRPCRequests map[string]int64
@@ -73,12 +77,13 @@ func NewAppServerAdapter(
 	opts *config.Options,
 ) *AppServerAdapter {
 	return &AppServerAdapter{
-		log:                log.With(slog.String("component", "appserver_adapter")),
-		inner:              NewAppServerTransport(log, opts),
-		messages:           make(chan map[string]any, 128),
-		errs:               make(chan error, 4),
-		done:               make(chan struct{}),
-		pendingRPCRequests: make(map[string]int64, 8),
+		log:                    log.With(slog.String("component", "appserver_adapter")),
+		inner:                  NewAppServerTransport(log, opts),
+		messages:               make(chan map[string]any, 128),
+		errs:                   make(chan error, 4),
+		done:                   make(chan struct{}),
+		includePartialMessages: opts.IncludePartialMessages,
+		pendingRPCRequests:     make(map[string]int64, 8),
 	}
 }
 
@@ -927,13 +932,28 @@ func (a *AppServerAdapter) translateNotification(
 		return a.translateItemNotification("item.started", params)
 
 	case "item/agentMessage/delta":
+		if !a.includePartialMessages {
+			return nil
+		}
+
 		delta, _ := params["delta"].(string)
+		itemID, _ := params["itemId"].(string)
+
+		a.mu.Lock()
+		sessionID := a.threadID
+		a.mu.Unlock()
 
 		return map[string]any{
-			"type": "item.updated",
-			"item": map[string]any{
-				"type": "agent_message",
-				"text": delta,
+			"type":       "stream_event",
+			"uuid":       itemID,
+			"session_id": sessionID,
+			"event": map[string]any{
+				"type":  "content_block_delta",
+				"index": 0,
+				"delta": map[string]any{
+					"type": "text_delta",
+					"text": delta,
+				},
 			},
 		}
 
@@ -1096,21 +1116,8 @@ func (a *AppServerAdapter) translateTurnCompleted(
 		}
 	}
 
-	// Forward known turn metadata fields when available.
-	if v, ok := params["durationMs"]; ok {
-		event["duration_ms"] = v
-	}
-
-	if v, ok := params["durationApiMs"]; ok {
-		event["duration_api_ms"] = v
-	}
-
 	if v, ok := params["isError"]; ok {
 		event["is_error"] = v
-	}
-
-	if v, ok := params["numTurns"]; ok {
-		event["num_turns"] = v
 	}
 
 	if v, ok := params["result"]; ok {
@@ -1123,10 +1130,6 @@ func (a *AppServerAdapter) translateTurnCompleted(
 		if strings.TrimSpace(lastAssistantText) != "" {
 			event["result"] = lastAssistantText
 		}
-	}
-
-	if v, ok := params["totalCostUsd"]; ok {
-		event["total_cost_usd"] = v
 	}
 
 	return event

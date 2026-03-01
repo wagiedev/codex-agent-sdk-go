@@ -8,7 +8,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -150,8 +149,9 @@ func displayMessage(log logrus.FieldLogger, msg codexsdk.Message) {
 			"component": "result",
 		}
 
-		if m.TotalCostUSD != nil {
-			fields["cost_usd"] = fmt.Sprintf("$%.4f", *m.TotalCostUSD)
+		if m.Usage != nil {
+			fields["input_tokens"] = m.Usage.InputTokens
+			fields["output_tokens"] = m.Usage.OutputTokens
 		}
 
 		log.WithFields(fields).Info("Query completed")

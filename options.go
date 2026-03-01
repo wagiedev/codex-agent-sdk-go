@@ -305,3 +305,16 @@ func WithSkipVersionCheck(skip bool) Option {
 		o.SkipVersionCheck = skip
 	}
 }
+
+// ===== Streaming =====
+
+// WithIncludePartialMessages controls whether streaming deltas are emitted as
+// StreamEvent messages. When false (default), only completed AssistantMessage
+// and ResultMessage are emitted. When true, token-by-token deltas are emitted
+// as StreamEvent with content_block_delta/text_delta shape, followed by the
+// completed AssistantMessage.
+func WithIncludePartialMessages(include bool) Option {
+	return func(o *CodexAgentOptions) {
+		o.IncludePartialMessages = include
+	}
+}

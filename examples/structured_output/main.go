@@ -68,8 +68,8 @@ func getStructuredOutput(ctx context.Context, prompt string, schemaFile string, 
 			}
 
 		case *codexsdk.ResultMessage:
-			if m.TotalCostUSD != nil {
-				fmt.Printf("Cost: $%.4f\n", *m.TotalCostUSD)
+			if m.Usage != nil {
+				fmt.Printf("Tokens: %d in / %d out\n", m.Usage.InputTokens, m.Usage.OutputTokens)
 			}
 
 			if m.StructuredOutput != nil {

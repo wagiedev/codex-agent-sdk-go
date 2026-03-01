@@ -163,17 +163,13 @@ func (m *SystemMessage) MessageType() string { return "system" }
 //
 //nolint:tagliatelle // CLI uses snake_case
 type ResultMessage struct {
-	Type             string   `json:"type"`
-	Subtype          string   `json:"subtype"`
-	DurationMs       int      `json:"duration_ms"`
-	DurationAPIMs    int      `json:"duration_api_ms"`
-	IsError          bool     `json:"is_error"`
-	NumTurns         int      `json:"num_turns"`
-	SessionID        string   `json:"session_id"`
-	TotalCostUSD     *float64 `json:"total_cost_usd,omitempty"`
-	Usage            *Usage   `json:"usage,omitempty"`
-	Result           *string  `json:"result,omitempty"`
-	StructuredOutput any      `json:"structured_output,omitempty"`
+	Type             string  `json:"type"`
+	Subtype          string  `json:"subtype"`
+	IsError          bool    `json:"is_error"`
+	SessionID        string  `json:"session_id"`
+	Usage            *Usage  `json:"usage,omitempty"`
+	Result           *string `json:"result,omitempty"`
+	StructuredOutput any     `json:"structured_output,omitempty"`
 }
 
 // MessageType implements the Message interface.
@@ -196,8 +192,10 @@ func (m *StreamEvent) MessageType() string { return "stream_event" }
 //
 //nolint:tagliatelle // CLI uses snake_case
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
+	InputTokens           int `json:"input_tokens"`
+	OutputTokens          int `json:"output_tokens"`
+	CachedInputTokens     int `json:"cached_input_tokens"`
+	ReasoningOutputTokens int `json:"reasoning_output_tokens"`
 }
 
 // StreamingMessageContent represents the content of a streaming message.

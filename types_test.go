@@ -140,31 +140,28 @@ func TestToolResultBlock_Creation(t *testing.T) {
 // TestResultMessage_Creation tests result message creation.
 func TestResultMessage_Creation(t *testing.T) {
 	msg := &ResultMessage{
-		Type:         "result",
-		Subtype:      "success",
-		DurationMs:   1234,
-		IsError:      false,
-		NumTurns:     5,
-		SessionID:    "session_abc123",
-		TotalCostUSD: new(0.05),
+		Type:      "result",
+		Subtype:   "success",
+		IsError:   false,
+		SessionID: "session_abc123",
 		Usage: &Usage{
-			InputTokens:  1000,
-			OutputTokens: 500,
+			InputTokens:           1000,
+			OutputTokens:          500,
+			CachedInputTokens:     200,
+			ReasoningOutputTokens: 50,
 		},
 	}
 
 	require.Equal(t, "result", msg.Type)
 	require.Equal(t, "result", msg.MessageType())
 	require.Equal(t, "success", msg.Subtype)
-	require.Equal(t, 1234, msg.DurationMs)
 	require.False(t, msg.IsError)
-	require.Equal(t, 5, msg.NumTurns)
 	require.Equal(t, "session_abc123", msg.SessionID)
-	require.NotNil(t, msg.TotalCostUSD)
-	require.InDelta(t, 0.05, *msg.TotalCostUSD, 0.001)
 	require.NotNil(t, msg.Usage)
 	require.Equal(t, 1000, msg.Usage.InputTokens)
 	require.Equal(t, 500, msg.Usage.OutputTokens)
+	require.Equal(t, 200, msg.Usage.CachedInputTokens)
+	require.Equal(t, 50, msg.Usage.ReasoningOutputTokens)
 }
 
 // TestCodexAgentOptions_DefaultValues tests default option values.
