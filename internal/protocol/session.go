@@ -14,6 +14,7 @@ import (
 	"github.com/wagiedev/codex-agent-sdk-go/internal/config"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/mcp"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/permission"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/userinput"
 )
 
 const (
@@ -56,6 +57,7 @@ func (s *Session) RegisterHandlers() {
 	s.controller.RegisterHandler("can_use_tool", s.HandleCanUseTool)
 	s.controller.RegisterHandler("item_commandExecution/requestApproval", s.HandleCanUseTool)
 	s.controller.RegisterHandler("item_commandExecution_requestApproval", s.HandleCanUseTool)
+	s.controller.RegisterHandler("item_tool/requestUserInput", s.HandleRequestUserInput)
 }
 
 // RegisterMCPServers extracts and registers SDK MCP servers from options.
@@ -169,6 +171,10 @@ func (s *Session) buildInitializePayload() map[string]any {
 
 	if approvalPolicy := mapPermissionToApprovalPolicy(s.options.PermissionMode); approvalPolicy != "" {
 		payload["approvalPolicy"] = approvalPolicy
+	}
+
+	if s.options.PermissionMode != "" {
+		payload["permissionMode"] = s.options.PermissionMode
 	}
 
 	if len(s.options.AllowedTools) > 0 {
@@ -352,7 +358,7 @@ func mapPermissionToApprovalPolicy(permMode string) string {
 		return "never"
 	case "askAll":
 		return "untrusted"
-	case "default", "acceptEdits", "":
+	case "default", "acceptEdits", "plan", "":
 		return "on-request"
 	default:
 		return ""
@@ -381,6 +387,7 @@ func (s *Session) NeedsInitialization() bool {
 	}
 
 	return s.options.CanUseTool != nil ||
+		s.options.OnUserInput != nil ||
 		len(s.sdkMcpServers) > 0 ||
 		len(s.sdkDynamicTools) > 0
 }
@@ -571,6 +578,107 @@ func convertMCPContentToItems(result map[string]any) []map[string]any {
 	}
 
 	return items
+}
+
+// HandleRequestUserInput handles item/tool/requestUserInput requests from the CLI.
+// It parses the request into typed userinput types, invokes the OnUserInput callback,
+// and serializes the response back to the wire format.
+func (s *Session) HandleRequestUserInput(
+	ctx context.Context,
+	req *ControlRequest,
+) (map[string]any, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+
+	if s.options == nil || s.options.OnUserInput == nil {
+		return map[string]any{"answers": map[string]any{}}, nil
+	}
+
+	parsed, err := parseUserInputRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("parse user input request: %w", err)
+	}
+
+	resp, err := s.options.OnUserInput(ctx, parsed)
+	if err != nil {
+		return nil, err
+	}
+
+	return serializeUserInputResponse(resp), nil
+}
+
+// parseUserInputRequest extracts typed userinput.Request from the wire format.
+func parseUserInputRequest(req *ControlRequest) (*userinput.Request, error) {
+	result := &userinput.Request{}
+	result.ItemID, _ = req.Request["item_id"].(string)
+	result.ThreadID, _ = req.Request["thread_id"].(string)
+	result.TurnID, _ = req.Request["turn_id"].(string)
+
+	questionsRaw, _ := req.Request["questions"].([]any)
+	if len(questionsRaw) == 0 {
+		return result, nil
+	}
+
+	result.Questions = make([]userinput.Question, 0, len(questionsRaw))
+
+	for _, qRaw := range questionsRaw {
+		qMap, ok := qRaw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		q := userinput.Question{}
+		q.ID, _ = qMap["id"].(string)
+		q.Header, _ = qMap["header"].(string)
+		q.Question, _ = qMap["question"].(string)
+		q.IsOther, _ = qMap["is_other"].(bool)
+		q.IsSecret, _ = qMap["is_secret"].(bool)
+
+		if optionsRaw, ok := qMap["options"].([]any); ok {
+			q.Options = make([]userinput.QuestionOption, 0, len(optionsRaw))
+
+			for _, oRaw := range optionsRaw {
+				oMap, ok := oRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+
+				opt := userinput.QuestionOption{}
+				opt.Label, _ = oMap["label"].(string)
+				opt.Description, _ = oMap["description"].(string)
+
+				q.Options = append(q.Options, opt)
+			}
+		}
+
+		result.Questions = append(result.Questions, q)
+	}
+
+	return result, nil
+}
+
+// serializeUserInputResponse converts a typed Response into the wire format.
+func serializeUserInputResponse(resp *userinput.Response) map[string]any {
+	if resp == nil || len(resp.Answers) == 0 {
+		return map[string]any{"answers": map[string]any{}}
+	}
+
+	answers := make(map[string]any, len(resp.Answers))
+
+	for qID, answer := range resp.Answers {
+		if answer == nil {
+			continue
+		}
+
+		answers[qID] = map[string]any{
+			"answers": answer.Answers,
+		}
+	}
+
+	return map[string]any{"answers": answers}
 }
 
 // HandleCanUseTool is called by CLI before tool use.

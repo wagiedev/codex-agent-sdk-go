@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/config"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/mcp"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/userinput"
 )
 
 // TestSession_NeedsInitialization_Empty tests that NeedsInitialization returns false
@@ -349,4 +350,158 @@ func TestSession_InitializationResult_ConcurrentReadWrite(t *testing.T) {
 	}
 
 	wg.Wait()
+}
+
+func TestSession_HandleRequestUserInput_NoCallback(t *testing.T) {
+	log := slog.Default()
+
+	session := NewSession(log, nil, &config.Options{})
+
+	resp, err := session.HandleRequestUserInput(context.Background(), &ControlRequest{
+		Request: map[string]any{
+			"subtype":   "item_tool/requestUserInput",
+			"item_id":   "item_1",
+			"thread_id": "thread_1",
+			"questions": []any{
+				map[string]any{
+					"id":       "q1",
+					"question": "Pick a language",
+					"options": []any{
+						map[string]any{"label": "Go", "description": "Fast compiled"},
+					},
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
+	answers, ok := resp["answers"].(map[string]any)
+	require.True(t, ok)
+	require.Empty(t, answers, "no callback should return empty answers")
+}
+
+func TestSession_HandleRequestUserInput_WithCallback(t *testing.T) {
+	log := slog.Default()
+
+	var captured *userinput.Request
+
+	session := NewSession(log, nil, &config.Options{
+		OnUserInput: func(_ context.Context, req *userinput.Request) (*userinput.Response, error) {
+			captured = req
+
+			answers := make(map[string]*userinput.Answer, 1)
+			answers[req.Questions[0].ID] = &userinput.Answer{
+				Answers: []string{req.Questions[0].Options[1].Label},
+			}
+
+			return &userinput.Response{Answers: answers}, nil
+		},
+	})
+
+	resp, err := session.HandleRequestUserInput(context.Background(), &ControlRequest{
+		Request: map[string]any{
+			"subtype":   "item_tool/requestUserInput",
+			"item_id":   "item_42",
+			"thread_id": "thread_7",
+			"turn_id":   "turn_3",
+			"questions": []any{
+				map[string]any{
+					"id":       "lang",
+					"header":   "Language",
+					"question": "Which language?",
+					"options": []any{
+						map[string]any{"label": "Go", "description": "Fast compiled"},
+						map[string]any{"label": "Rust", "description": "Memory safe"},
+						map[string]any{"label": "Python", "description": "Interpreted"},
+					},
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, captured)
+	require.Equal(t, "item_42", captured.ItemID)
+	require.Equal(t, "thread_7", captured.ThreadID)
+	require.Equal(t, "turn_3", captured.TurnID)
+	require.Len(t, captured.Questions, 1)
+	require.Equal(t, "lang", captured.Questions[0].ID)
+	require.Equal(t, "Language", captured.Questions[0].Header)
+	require.Equal(t, "Which language?", captured.Questions[0].Question)
+	require.Len(t, captured.Questions[0].Options, 3)
+	require.Equal(t, "Rust", captured.Questions[0].Options[1].Label)
+
+	answers, ok := resp["answers"].(map[string]any)
+	require.True(t, ok)
+
+	langAnswer, ok := answers["lang"].(map[string]any)
+	require.True(t, ok)
+
+	answerList, ok := langAnswer["answers"].([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"Rust"}, answerList)
+}
+
+func TestSession_HandleRequestUserInput_FreeText(t *testing.T) {
+	log := slog.Default()
+
+	session := NewSession(log, nil, &config.Options{
+		OnUserInput: func(_ context.Context, req *userinput.Request) (*userinput.Response, error) {
+			answers := make(map[string]*userinput.Answer, 1)
+			answers[req.Questions[0].ID] = &userinput.Answer{
+				Answers: []string{"my free text answer"},
+			}
+
+			return &userinput.Response{Answers: answers}, nil
+		},
+	})
+
+	resp, err := session.HandleRequestUserInput(context.Background(), &ControlRequest{
+		Request: map[string]any{
+			"subtype":   "item_tool/requestUserInput",
+			"item_id":   "item_1",
+			"thread_id": "thread_1",
+			"questions": []any{
+				map[string]any{
+					"id":       "name",
+					"question": "What is your name?",
+				},
+			},
+		},
+	})
+
+	require.NoError(t, err)
+
+	answers, ok := resp["answers"].(map[string]any)
+	require.True(t, ok)
+
+	nameAnswer, ok := answers["name"].(map[string]any)
+	require.True(t, ok)
+
+	answerList, ok := nameAnswer["answers"].([]string)
+	require.True(t, ok)
+	require.Equal(t, []string{"my free text answer"}, answerList)
+}
+
+func TestSession_NeedsInitialization_WithOnUserInput(t *testing.T) {
+	log := slog.Default()
+
+	session := &Session{
+		log: log,
+		options: &config.Options{
+			OnUserInput: func(_ context.Context, _ *userinput.Request) (*userinput.Response, error) {
+				return &userinput.Response{}, nil
+			},
+		},
+		sdkMcpServers:   make(map[string]mcp.ServerInstance, 4),
+		sdkDynamicTools: make(map[string]*config.DynamicTool, 4),
+	}
+
+	require.True(t, session.NeedsInitialization(),
+		"Expected NeedsInitialization() to return true with OnUserInput set")
+}
+
+func TestMapPermissionToApprovalPolicy_Plan(t *testing.T) {
+	require.Equal(t, "on-request", mapPermissionToApprovalPolicy("plan"))
 }

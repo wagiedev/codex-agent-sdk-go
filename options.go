@@ -173,6 +173,16 @@ func WithCanUseTool(callback ToolPermissionCallback) Option {
 	}
 }
 
+// WithOnUserInput sets a callback for handling user input requests from the CLI.
+// The callback is invoked when the agent sends item/tool/requestUserInput requests,
+// allowing the SDK consumer to answer multiple-choice or free-text questions
+// (e.g., in plan mode).
+func WithOnUserInput(callback UserInputCallback) Option {
+	return func(o *CodexAgentOptions) {
+		o.OnUserInput = callback
+	}
+}
+
 // ===== Session =====
 
 // WithContinueConversation indicates whether to continue an existing conversation.
@@ -316,5 +326,15 @@ func WithSkipVersionCheck(skip bool) Option {
 func WithIncludePartialMessages(include bool) Option {
 	return func(o *CodexAgentOptions) {
 		o.IncludePartialMessages = include
+	}
+}
+
+// ===== Session Metadata =====
+
+// WithCodexHome overrides the Codex home directory (default ~/.codex).
+// Used by StatSession to locate the session database.
+func WithCodexHome(path string) Option {
+	return func(o *CodexAgentOptions) {
+		o.CodexHome = path
 	}
 }

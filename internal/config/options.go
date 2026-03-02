@@ -8,6 +8,7 @@ import (
 	"github.com/wagiedev/codex-agent-sdk-go/internal/hook"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/mcp"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/permission"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/userinput"
 )
 
 // DynamicTool defines a tool registered via the dynamicTools API.
@@ -110,6 +111,11 @@ type Options struct {
 	// Permission callback invoked when CLI sends can_use_tool requests via protocol.
 	CanUseTool permission.Callback
 
+	// OnUserInput is called when the CLI sends item/tool/requestUserInput requests.
+	// This callback allows the SDK consumer to answer questions posed by the agent
+	// (e.g., multiple-choice or free-text prompts in plan mode).
+	OnUserInput userinput.Callback
+
 	// ===== CLAUDE SDK PARITY FIELDS =====
 
 	// Tools specifies which tools are available.
@@ -174,4 +180,8 @@ type Options struct {
 	// AssistantMessage and ResultMessage are emitted. When true, token-by-token
 	// deltas are emitted as StreamEvent with content_block_delta/text_delta shape.
 	IncludePartialMessages bool
+
+	// CodexHome overrides the Codex home directory (default ~/.codex).
+	// Used by StatSession to locate the session database.
+	CodexHome string
 }

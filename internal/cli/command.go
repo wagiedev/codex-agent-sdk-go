@@ -6,7 +6,85 @@ import (
 	"sort"
 
 	"github.com/wagiedev/codex-agent-sdk-go/internal/config"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/mcp"
 )
+
+// serializeMCPServerConfigArgs converts MCP server configs into `-c` flag pairs
+// using the Codex CLI's TOML config mechanism (e.g. `-c mcp_servers.NAME.type=http`).
+// Server names are sorted for deterministic output.
+func serializeMCPServerConfigArgs(servers map[string]mcp.ServerConfig) []string {
+	if len(servers) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(servers))
+	for name := range servers {
+		names = append(names, name)
+	}
+
+	sort.Strings(names)
+
+	var args []string
+
+	for _, name := range names {
+		cfg := servers[name]
+		prefix := fmt.Sprintf("mcp_servers.%s", name)
+
+		switch c := cfg.(type) {
+		case *mcp.HTTPServerConfig:
+			args = append(args, "-c", fmt.Sprintf("%s.type=http", prefix))
+			args = append(args, "-c", fmt.Sprintf("%s.url=%s", prefix, c.URL))
+
+			headerKeys := make([]string, 0, len(c.Headers))
+			for k := range c.Headers {
+				headerKeys = append(headerKeys, k)
+			}
+
+			sort.Strings(headerKeys)
+
+			for _, k := range headerKeys {
+				args = append(args, "-c", fmt.Sprintf("%s.http_headers.%s=%s", prefix, k, c.Headers[k]))
+			}
+		case *mcp.SSEServerConfig:
+			args = append(args, "-c", fmt.Sprintf("%s.type=sse", prefix))
+			args = append(args, "-c", fmt.Sprintf("%s.url=%s", prefix, c.URL))
+
+			headerKeys := make([]string, 0, len(c.Headers))
+			for k := range c.Headers {
+				headerKeys = append(headerKeys, k)
+			}
+
+			sort.Strings(headerKeys)
+
+			for _, k := range headerKeys {
+				args = append(args, "-c", fmt.Sprintf("%s.http_headers.%s=%s", prefix, k, c.Headers[k]))
+			}
+		case *mcp.StdioServerConfig:
+			args = append(args, "-c", fmt.Sprintf("%s.type=stdio", prefix))
+			args = append(args, "-c", fmt.Sprintf("%s.command=%s", prefix, c.Command))
+
+			for _, arg := range c.Args {
+				args = append(args, "-c", fmt.Sprintf("%s.args=%s", prefix, arg))
+			}
+
+			envKeys := make([]string, 0, len(c.Env))
+			for k := range c.Env {
+				envKeys = append(envKeys, k)
+			}
+
+			sort.Strings(envKeys)
+
+			for _, k := range envKeys {
+				args = append(args, "-c", fmt.Sprintf("%s.env.%s=%s", prefix, k, c.Env[k]))
+			}
+		case *mcp.SdkServerConfig:
+			// SDK servers cannot be serialized to CLI flags; skip.
+			continue
+		}
+	}
+
+	return args
+}
 
 // Command represents the CLI command to execute.
 type Command struct {
@@ -72,6 +150,9 @@ func BuildExecArgs(prompt string, options *config.Options) []string {
 		}
 	}
 
+	// MCP server configs serialized as -c flags.
+	args = append(args, serializeMCPServerConfigArgs(options.MCPServers)...)
+
 	if options.OutputSchema != "" {
 		args = append(args, "--output-schema", options.OutputSchema)
 	}
@@ -92,8 +173,14 @@ func BuildExecArgs(prompt string, options *config.Options) []string {
 }
 
 // BuildAppServerArgs constructs the CLI argument list for `codex app-server`.
-func BuildAppServerArgs(_ *config.Options) []string {
-	return []string{"app-server"}
+func BuildAppServerArgs(options *config.Options) []string {
+	args := []string{"app-server"}
+
+	if options != nil {
+		args = append(args, serializeMCPServerConfigArgs(options.MCPServers)...)
+	}
+
+	return args
 }
 
 // BuildEnvironment constructs the environment variables for the CLI process.

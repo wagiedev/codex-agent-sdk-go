@@ -29,6 +29,7 @@ Capability selection/validation logic lives in:
 - `internal/protocol/`: JSON-RPC/session controller, dynamic tool dispatch
 - `internal/message/`: parsing + public message mapping
 - `internal/config/`: options, `DynamicTool` type, and backend capability policy
+- `internal/session/`: SQLite-based session metadata lookup
 - `internal/mcp/`: MCP server integration and status
 
 ## Change Impact Guidance

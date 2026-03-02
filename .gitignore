@@ -36,6 +36,7 @@ Thumbs.db
 # Build artifacts
 dist/
 bin/
+user_input_callback
 
 # Examples
 hello.txt

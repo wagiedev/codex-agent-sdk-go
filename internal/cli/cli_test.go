@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/config"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/errors"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/mcp"
 )
 
 const flagImage = "-i"
@@ -564,8 +565,8 @@ func TestBuildAppServerArgs(t *testing.T) {
 	require.Equal(t, []string{"app-server"}, args)
 }
 
-// TestBuildAppServerArgs_IgnoresOptions tests that app-server ignores options.
-func TestBuildAppServerArgs_IgnoresOptions(t *testing.T) {
+// TestBuildAppServerArgs_IgnoresNonMCPOptions tests that app-server ignores non-MCP options.
+func TestBuildAppServerArgs_IgnoresNonMCPOptions(t *testing.T) {
 	options := &config.Options{
 		Model:   "o4-mini",
 		Sandbox: "workspace-write",
@@ -574,7 +575,43 @@ func TestBuildAppServerArgs_IgnoresOptions(t *testing.T) {
 
 	args := BuildAppServerArgs(options)
 
-	// App server args should always be just ["app-server"]
+	// Without MCP servers, app server args should be just ["app-server"]
+	require.Equal(t, []string{"app-server"}, args)
+}
+
+// TestBuildAppServerArgs_WithMCPServers tests that MCP servers are serialized as -c flags.
+func TestBuildAppServerArgs_WithMCPServers(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"my-api": &mcp.HTTPServerConfig{
+				Type:    mcp.ServerTypeHTTP,
+				URL:     "https://api.example.com/mcp",
+				Headers: map[string]string{"Authorization": "Bearer tok123"},
+			},
+		},
+	}
+
+	args := BuildAppServerArgs(options)
+
+	require.Equal(t, "app-server", args[0])
+	require.Contains(t, args, "mcp_servers.my-api.type=http")
+	require.Contains(t, args, "mcp_servers.my-api.url=https://api.example.com/mcp")
+	require.Contains(t, args, "mcp_servers.my-api.http_headers.Authorization=Bearer tok123")
+}
+
+// TestBuildAppServerArgs_WithMCPServersSDKSkipped tests that SDK servers produce no extra flags.
+func TestBuildAppServerArgs_WithMCPServersSDKSkipped(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"sdk-server": &mcp.SdkServerConfig{
+				Type: mcp.ServerTypeSDK,
+				Name: "in-process",
+			},
+		},
+	}
+
+	args := BuildAppServerArgs(options)
+
 	require.Equal(t, []string{"app-server"}, args)
 }
 
@@ -785,6 +822,153 @@ func TestBuildExecArgs_OutputSchemaComplex(t *testing.T) {
 	idx := slices.Index(args, "--output-schema")
 	require.NotEqual(t, -1, idx)
 	require.Equal(t, schema, args[idx+1])
+}
+
+// TestBuildExecArgs_WithMCPServers_HTTP tests HTTP MCP server serialization.
+func TestBuildExecArgs_WithMCPServers_HTTP(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"my-api": &mcp.HTTPServerConfig{
+				Type:    mcp.ServerTypeHTTP,
+				URL:     "https://api.example.com/mcp",
+				Headers: map[string]string{"Authorization": "Bearer tok123"},
+			},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	require.Contains(t, args, "mcp_servers.my-api.type=http")
+	require.Contains(t, args, "mcp_servers.my-api.url=https://api.example.com/mcp")
+	require.Contains(t, args, "mcp_servers.my-api.http_headers.Authorization=Bearer tok123")
+	require.Equal(t, "test", args[len(args)-1])
+}
+
+// TestBuildExecArgs_WithMCPServers_SSE tests SSE MCP server serialization.
+func TestBuildExecArgs_WithMCPServers_SSE(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"events": &mcp.SSEServerConfig{
+				Type:    mcp.ServerTypeSSE,
+				URL:     "https://sse.example.com/events",
+				Headers: map[string]string{"X-Api-Key": "secret"},
+			},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	require.Contains(t, args, "mcp_servers.events.type=sse")
+	require.Contains(t, args, "mcp_servers.events.url=https://sse.example.com/events")
+	require.Contains(t, args, "mcp_servers.events.http_headers.X-Api-Key=secret")
+}
+
+// TestBuildExecArgs_WithMCPServers_Stdio tests stdio MCP server serialization.
+func TestBuildExecArgs_WithMCPServers_Stdio(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"local-tool": &mcp.StdioServerConfig{
+				Command: "/usr/bin/my-tool",
+				Args:    []string{"--port", "8080"},
+				Env:     map[string]string{"DEBUG": "true", "HOME": "/tmp"},
+			},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	require.Contains(t, args, "mcp_servers.local-tool.type=stdio")
+	require.Contains(t, args, "mcp_servers.local-tool.command=/usr/bin/my-tool")
+	require.Contains(t, args, "mcp_servers.local-tool.args=--port")
+	require.Contains(t, args, "mcp_servers.local-tool.args=8080")
+	require.Contains(t, args, "mcp_servers.local-tool.env.DEBUG=true")
+	require.Contains(t, args, "mcp_servers.local-tool.env.HOME=/tmp")
+}
+
+// TestBuildExecArgs_WithMCPServers_SDKSkipped tests that SDK servers are skipped.
+func TestBuildExecArgs_WithMCPServers_SDKSkipped(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"sdk-server": &mcp.SdkServerConfig{
+				Type: mcp.ServerTypeSDK,
+				Name: "in-process",
+			},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	for _, arg := range args {
+		require.NotContains(t, arg, "mcp_servers.sdk-server",
+			"SDK server should not produce any -c flags")
+	}
+}
+
+// TestBuildExecArgs_WithMCPServers_Mixed tests mixed server types together.
+func TestBuildExecArgs_WithMCPServers_Mixed(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"http-svc": &mcp.HTTPServerConfig{
+				Type: mcp.ServerTypeHTTP,
+				URL:  "https://http.example.com",
+			},
+			"stdio-svc": &mcp.StdioServerConfig{
+				Command: "my-cmd",
+			},
+			"sdk-svc": &mcp.SdkServerConfig{
+				Type: mcp.ServerTypeSDK,
+				Name: "skip-me",
+			},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	require.Contains(t, args, "mcp_servers.http-svc.type=http")
+	require.Contains(t, args, "mcp_servers.http-svc.url=https://http.example.com")
+	require.Contains(t, args, "mcp_servers.stdio-svc.type=stdio")
+	require.Contains(t, args, "mcp_servers.stdio-svc.command=my-cmd")
+
+	for _, arg := range args {
+		require.NotContains(t, arg, "mcp_servers.sdk-svc")
+	}
+}
+
+// TestBuildExecArgs_WithMCPServers_Empty tests that empty MCP servers add no flags.
+func TestBuildExecArgs_WithMCPServers_Empty(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	for _, arg := range args {
+		require.NotContains(t, arg, "mcp_servers.")
+	}
+}
+
+// TestBuildExecArgs_WithMCPServers_DeterministicOrder tests that server names are sorted.
+func TestBuildExecArgs_WithMCPServers_DeterministicOrder(t *testing.T) {
+	options := &config.Options{
+		MCPServers: map[string]mcp.ServerConfig{
+			"zebra": &mcp.HTTPServerConfig{Type: mcp.ServerTypeHTTP, URL: "https://z.example.com"},
+			"alpha": &mcp.HTTPServerConfig{Type: mcp.ServerTypeHTTP, URL: "https://a.example.com"},
+			"mid":   &mcp.HTTPServerConfig{Type: mcp.ServerTypeHTTP, URL: "https://m.example.com"},
+		},
+	}
+
+	args := BuildExecArgs("test", options)
+
+	alphaIdx := slices.Index(args, "mcp_servers.alpha.type=http")
+	midIdx := slices.Index(args, "mcp_servers.mid.type=http")
+	zebraIdx := slices.Index(args, "mcp_servers.zebra.type=http")
+
+	require.NotEqual(t, -1, alphaIdx)
+	require.NotEqual(t, -1, midIdx)
+	require.NotEqual(t, -1, zebraIdx)
+
+	require.Less(t, alphaIdx, midIdx)
+	require.Less(t, midIdx, zebraIdx)
 }
 
 // TestBuildExecArgs_AlwaysContainsBaseFlags tests that base flags are always present.

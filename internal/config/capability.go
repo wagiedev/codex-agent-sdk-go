@@ -54,9 +54,10 @@ var optionCapabilities = []OptionCapability{
 		AppServer: SupportUnsupported, Notes: "hooks are a CLI-internal concept, not exposed over app-server protocol",
 	},
 	{Field: "Effort", OptionName: "WithEffort", Exec: SupportUnsupported, AppServer: SupportSupported},
-	{Field: "MCPServers", OptionName: "WithMCPServers", Exec: SupportUnsupported, AppServer: SupportSupported},
+	{Field: "MCPServers", OptionName: "WithMCPServers", Exec: SupportSupported, AppServer: SupportSupported},
 	{Field: "SDKTools", OptionName: "WithSDKTools", Exec: SupportUnsupported, AppServer: SupportSupported},
 	{Field: "CanUseTool", OptionName: "WithCanUseTool", Exec: SupportUnsupported, AppServer: SupportSupported},
+	{Field: "OnUserInput", OptionName: "WithOnUserInput", Exec: SupportUnsupported, AppServer: SupportSupported},
 	{
 		Field: "Tools", OptionName: "WithTools", Exec: SupportUnsupported, AppServer: SupportEmulated,
 		Notes: "emulated via SDK can_use_tool policy (not a native codex option)",
@@ -106,6 +107,10 @@ var optionCapabilities = []OptionCapability{
 		Field: "IncludePartialMessages", OptionName: "WithIncludePartialMessages", Exec: SupportUnsupported,
 		AppServer: SupportSupported,
 	},
+	{
+		Field: "CodexHome", OptionName: "WithCodexHome", Exec: SupportSupported,
+		AppServer: SupportSupported, Notes: "only used by StatSession, no-op for Query/Client",
+	},
 }
 
 var optionCapabilityByField = func() map[string]OptionCapability {
@@ -151,6 +156,7 @@ func EnabledOptionFields(opts *Options) map[string]bool {
 	set("MCPServers", len(opts.MCPServers) > 0)
 	set("SDKTools", len(opts.SDKTools) > 0)
 	set("CanUseTool", opts.CanUseTool != nil)
+	set("OnUserInput", opts.OnUserInput != nil)
 	set("Tools", opts.Tools != nil)
 	set("AllowedTools", len(opts.AllowedTools) > 0)
 	set("DisallowedTools", len(opts.DisallowedTools) > 0)
@@ -170,6 +176,7 @@ func EnabledOptionFields(opts *Options) map[string]bool {
 	set("OutputSchema", opts.OutputSchema != "")
 	set("SkipVersionCheck", opts.SkipVersionCheck)
 	set("IncludePartialMessages", opts.IncludePartialMessages)
+	set("CodexHome", opts.CodexHome != "")
 
 	return enabled
 }
