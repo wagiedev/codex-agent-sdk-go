@@ -10,6 +10,7 @@ import (
 	"github.com/wagiedev/codex-agent-sdk-go/internal/model"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/permission"
 	"github.com/wagiedev/codex-agent-sdk-go/internal/sandbox"
+	"github.com/wagiedev/codex-agent-sdk-go/internal/userinput"
 )
 
 // Re-export types from internal packages
@@ -346,6 +347,26 @@ type PermissionResultDeny = permission.ResultDeny
 
 // ToolPermissionCallback is called before each tool use for permission checking.
 type ToolPermissionCallback = permission.Callback
+
+// ===== User Input =====
+
+// UserInputQuestionOption represents a selectable choice within a question.
+type UserInputQuestionOption = userinput.QuestionOption
+
+// UserInputQuestion represents a single question posed to the user.
+type UserInputQuestion = userinput.Question
+
+// UserInputAnswer contains the user's response(s) to a question.
+type UserInputAnswer = userinput.Answer
+
+// UserInputRequest represents the full user input request from the CLI.
+type UserInputRequest = userinput.Request
+
+// UserInputResponse contains the answers to all questions keyed by question ID.
+type UserInputResponse = userinput.Response
+
+// UserInputCallback is invoked when the CLI sends an item/tool/requestUserInput request.
+type UserInputCallback = userinput.Callback
 
 // ===== MCP Server Configuration =====
 

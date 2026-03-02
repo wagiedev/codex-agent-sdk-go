@@ -137,6 +137,7 @@ if err != nil {
 | `QueryStream(ctx, messages, opts...)` | Streams `StreamingMessage` input and yields `Message` output |
 | `NewClient()` | Creates a stateful client for interactive sessions |
 | `WithClient(ctx, fn, opts...)` | Helper that runs `Start()` + callback + `Close()` |
+| `StatSession(ctx, sessionID, opts...)` | Read session metadata from local SQLite database |
 
 ### `Client` methods
 
@@ -204,6 +205,7 @@ Options are backend-dependent. Unsupported combinations fail fast with `ErrUnsup
 |---|---|
 | `WithHooks(hooks)` | Hook callbacks for tool/session events |
 | `WithCanUseTool(callback)` | Per-tool permission callback |
+| `WithOnUserInput(callback)` | Handle agent's `requestUserInput` questions (plan mode) |
 | `WithTools(...)` / `WithAllowedTools(...)` / `WithDisallowedTools(...)` | Tool allow/block policy |
 | `WithPermissionPromptToolName("stdio")` | Permission prompt tool name |
 | `WithMCPServers(...)` | Register MCP servers |
@@ -219,6 +221,7 @@ Options are backend-dependent. Unsupported combinations fail fast with `ErrUnsup
 | `WithIncludePartialMessages(true)` | Emit streaming deltas as `StreamEvent` |
 | `WithAddDirs("/extra/path")` | Additional accessible directories |
 | `WithExtraArgs(map[string]*string{...})` | Raw CLI flags |
+| `WithCodexHome("/path/.codex")` | Override Codex home directory for `StatSession` |
 
 ### Important caveats
 
@@ -226,6 +229,27 @@ Options are backend-dependent. Unsupported combinations fail fast with `ErrUnsup
 - `WithPermissionPromptToolName(...)` only supports `"stdio"` on app-server paths.
 - `WithAddDirs(...)` and `WithExtraArgs(...)` are unsupported on app-server paths.
 - `WithOutputSchema(...)` and `WithOutputFormat(...)` serve different integration styles; choose one based on how you want structured output surfaced.
+
+## Session Metadata
+
+Read metadata from a local Codex session using `StatSession`:
+
+```go
+stat, err := codexsdk.StatSession(ctx, "550e8400-e29b-41d4-a716-446655440000",
+	codexsdk.WithCodexHome("/custom/.codex"), // optional
+	codexsdk.WithCwd("/home/user/project"),   // optional: filter by project
+)
+if err != nil {
+	if errors.Is(err, codexsdk.ErrSessionNotFound) {
+		log.Fatal("session not found")
+	}
+	log.Fatal(err)
+}
+fmt.Printf("Session: %s (tokens: %d)\n", stat.Title, stat.TokensUsed)
+```
+
+`StatSession` reads from the Codex CLI's local SQLite database (`~/.codex/state_5.sqlite`).
+No running CLI instance is required.
 
 ## Error Handling
 
@@ -261,6 +285,7 @@ for msg, err := range codexsdk.Query(ctx, prompt) {
 | `MessageParseError` | Failed to parse SDK message payload |
 | `CLIJSONDecodeError` | JSON decode failure from CLI output |
 | `ErrUnsupportedOption` | Option/backend combination is unsupported |
+| `ErrSessionNotFound` | Session not found in local database |
 
 ## Examples
 
@@ -272,6 +297,7 @@ for msg, err := range codexsdk.Query(ctx, prompt) {
 | [`mcp_calculator`](./examples/mcp_calculator) | In-process MCP server tools |
 | [`mcp_status`](./examples/mcp_status) | Querying MCP server status |
 | [`tool_permission_callback`](./examples/tool_permission_callback) | `WithCanUseTool` permission callback |
+| [`user_input_callback`](./examples/user_input_callback) | `WithOnUserInput` user input callback (plan mode) |
 | [`tools_option`](./examples/tools_option) | Tool allow/block configuration |
 | [`structured_output`](./examples/structured_output) | Structured output patterns |
 | [`extended_thinking`](./examples/extended_thinking) | `WithEffort(...)` usage |

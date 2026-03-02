@@ -57,6 +57,9 @@ var (
 
 	// ErrUnsupportedControlRequest indicates a control request subtype is not supported.
 	ErrUnsupportedControlRequest = errors.New("unsupported control request")
+
+	// ErrSessionNotFound indicates the requested session was not found.
+	ErrSessionNotFound = errors.New("session not found")
 )
 
 // CLINotFoundError indicates the Codex CLI binary was not found.

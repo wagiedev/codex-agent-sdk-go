@@ -42,4 +42,7 @@ var (
 
 	// ErrUnsupportedControlRequest indicates a control request subtype is not supported.
 	ErrUnsupportedControlRequest = errors.ErrUnsupportedControlRequest
+
+	// ErrSessionNotFound indicates the requested session was not found.
+	ErrSessionNotFound = errors.ErrSessionNotFound
 )

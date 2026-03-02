@@ -42,11 +42,12 @@ type AppServerAdapter struct {
 	threadID string
 	turnID   string
 
-	modelOverride          *string
-	approvalPolicyOverride *string
-	sandboxPolicyOverride  map[string]any
-	effortOverride         *string
-	outputSchemaOverride   any
+	modelOverride             *string
+	approvalPolicyOverride    *string
+	sandboxPolicyOverride     map[string]any
+	effortOverride            *string
+	outputSchemaOverride      any
+	collaborationModeOverride map[string]any
 
 	// lastTokenUsage caches the most recent token usage data from
 	// thread/tokenUsage/updated, injected into turn/completed if no
@@ -245,9 +246,22 @@ func (a *AppServerAdapter) handleInitialize(
 		}
 	}
 
+	// If collaboration mode is set but missing a model, backfill from
+	// the thread/start response so the CLI doesn't reject turn/start.
+	if cm := turnOverrides.collaborationMode; cm != nil {
+		if settings, ok := cm["settings"].(map[string]any); ok {
+			if _, hasModel := settings["model"]; !hasModel {
+				if respModel, ok := responsePayload["model"].(string); ok && respModel != "" {
+					settings["model"] = respModel
+				}
+			}
+		}
+	}
+
 	a.mu.Lock()
 	a.effortOverride = turnOverrides.effort
 	a.outputSchemaOverride = cloneAnyValue(turnOverrides.outputSchema)
+	a.collaborationModeOverride = cloneAnyMap(turnOverrides.collaborationMode)
 	a.mu.Unlock()
 
 	a.injectControlResponse(requestID, map[string]any{
@@ -260,8 +274,9 @@ func (a *AppServerAdapter) handleInitialize(
 }
 
 type initializeTurnOverrides struct {
-	effort       *string
-	outputSchema any
+	collaborationMode map[string]any
+	effort            *string
+	outputSchema      any
 }
 
 //nolint:gocyclo // initialization normalization intentionally handles many option variants.
@@ -306,6 +321,11 @@ func buildInitializeRPC(
 		}
 
 		turnOverrides.effort = &effort
+	}
+
+	if permMode, ok := requestData["permissionMode"].(string); ok && permMode == permissionModePlan {
+		model, _ := requestData["model"].(string)
+		turnOverrides.collaborationMode = buildCollaborationMode(permissionModePlan, model)
 	}
 
 	if developerInstructions, ok := requestData["systemPrompt"].(string); ok && developerInstructions != "" {
@@ -443,6 +463,17 @@ func (a *AppServerAdapter) handleSetPermissionMode(
 		maps.Copy(cloned, sandboxPolicy)
 
 		a.sandboxPolicyOverride = cloned
+	}
+
+	if mode == permissionModePlan {
+		var model string
+		if a.modelOverride != nil {
+			model = *a.modelOverride
+		}
+
+		a.collaborationModeOverride = buildCollaborationMode(permissionModePlan, model)
+	} else {
+		a.collaborationModeOverride = nil
 	}
 	a.mu.Unlock()
 
@@ -734,6 +765,7 @@ func (a *AppServerAdapter) handleUserMessage(
 	sandboxPolicyOverride := cloneAnyMap(a.sandboxPolicyOverride)
 	effortOverride := a.effortOverride
 	outputSchemaOverride := cloneAnyValue(a.outputSchemaOverride)
+	collaborationModeOverride := cloneAnyMap(a.collaborationModeOverride)
 	a.mu.Unlock()
 
 	params := map[string]any{
@@ -762,6 +794,20 @@ func (a *AppServerAdapter) handleUserMessage(
 
 	if outputSchemaOverride != nil {
 		params["outputSchema"] = outputSchemaOverride
+	}
+
+	if collaborationModeOverride != nil {
+		// Ensure the collaboration mode settings include a model — the CLI
+		// requires it. Fall back to the model from params or the override.
+		if settings, ok := collaborationModeOverride["settings"].(map[string]any); ok {
+			if _, hasModel := settings["model"]; !hasModel {
+				if m, ok := params["model"].(string); ok && m != "" {
+					settings["model"] = m
+				}
+			}
+		}
+
+		params["collaborationMode"] = collaborationModeOverride
 	}
 
 	resp, err := a.inner.SendRequest(ctx, "turn/start", params)
@@ -1182,6 +1228,8 @@ func convertTokenUsage(tokenUsage map[string]any) map[string]any {
 	return result
 }
 
+const permissionModePlan = "plan"
+
 func permissionModeToTurnOverrides(mode string) (string, map[string]any, error) {
 	const (
 		approvalOnRequest = "on-request"
@@ -1191,7 +1239,7 @@ func permissionModeToTurnOverrides(mode string) (string, map[string]any, error) 
 	const approvalUntrusted = "untrusted"
 
 	switch mode {
-	case "", "default", "plan":
+	case "", "default", permissionModePlan:
 		return approvalOnRequest, nil, nil
 	case "acceptEdits":
 		return approvalOnRequest, map[string]any{"type": "workspaceWrite"}, nil
@@ -1283,6 +1331,24 @@ func normalizeOutputSchema(value any) (any, error) {
 		return v, nil
 	default:
 		return cloneAnyValue(value), nil
+	}
+}
+
+// buildCollaborationMode constructs the collaborationMode object for turn/start.
+// The Codex CLI requires this on each turn/start when plan mode is active —
+// ModeKind::Plan enables request_user_input, while ModeKind::Default does not.
+func buildCollaborationMode(mode string, model string) map[string]any {
+	settings := map[string]any{
+		"developerInstructions": nil,
+	}
+
+	if model != "" {
+		settings["model"] = model
+	}
+
+	return map[string]any{
+		"mode":     mode,
+		"settings": settings,
 	}
 }
 

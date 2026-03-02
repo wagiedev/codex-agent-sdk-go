@@ -134,6 +134,58 @@
 //	    // ...
 //	}
 //
+// # Plan Mode and User Input Callbacks
+//
+// When using plan mode, the agent can ask the user questions via
+// request_user_input. Register a callback with WithOnUserInput to handle
+// these requests programmatically:
+//
+//	callback := func(
+//	    _ context.Context,
+//	    req *codexsdk.UserInputRequest,
+//	) (*codexsdk.UserInputResponse, error) {
+//	    answers := make(map[string]*codexsdk.UserInputAnswer, len(req.Questions))
+//	    for _, q := range req.Questions {
+//	        if len(q.Options) > 0 {
+//	            // Auto-select first option.
+//	            answers[q.ID] = &codexsdk.UserInputAnswer{
+//	                Answers: []string{q.Options[0].Label},
+//	            }
+//	        } else {
+//	            answers[q.ID] = &codexsdk.UserInputAnswer{
+//	                Answers: []string{"my answer"},
+//	            }
+//	        }
+//	    }
+//	    return &codexsdk.UserInputResponse{Answers: answers}, nil
+//	}
+//
+//	client := codexsdk.NewClient()
+//	err := client.Start(ctx,
+//	    codexsdk.WithPermissionMode("plan"),
+//	    codexsdk.WithOnUserInput(callback),
+//	    codexsdk.WithCanUseTool(myPermissionCallback),
+//	)
+//
+// WithOnUserInput requires the app-server backend and is typically paired with
+// WithPermissionMode("plan") and WithCanUseTool for full control over agent
+// interactions.
+//
+// # Session Metadata
+//
+// Read metadata about a local Codex session using StatSession:
+//
+//	stat, err := codexsdk.StatSession(ctx, "550e8400-e29b-41d4-a716-446655440000",
+//	    codexsdk.WithCodexHome("/custom/.codex"),
+//	)
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	fmt.Printf("Session: %s (tokens: %d)\n", stat.Title, stat.TokensUsed)
+//
+// StatSession reads from the Codex CLI's local SQLite database and does not
+// require a running CLI instance.
+//
 // # Requirements
 //
 // This SDK requires the Codex CLI to be installed and available in your system PATH.
